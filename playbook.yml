@@ -1,0 +1,53 @@
+- name: Deploy Java Web App
+  hosts: webserver
+  become: yes
+
+  tasks:
+    - name: Install Docker
+      apt:
+        name: docker.io
+        state: present
+        update_cache: true
+
+    - name: Ensure Docker service is running
+      service:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Copy application jar
+      copy:
+        src: ./target/product-catalogue-1.0-SNAPSHOT.jar
+        dest: /home/ubuntu/app.jar
+        mode: '0755'
+
+    - name: Copy config.yml
+      copy:
+        src: ./src/main/resources/config.yml
+        dest: /home/ubuntu/config.yml
+        mode: '0644'
+
+    - name: Create Dockerfile
+      copy:
+        dest: /home/ubuntu/Dockerfile
+        content: |
+          FROM openjdk:17-jdk-slim
+          COPY app.jar app.jar
+          COPY config.yml config.yml
+          EXPOSE 8080
+          ENTRYPOINT ["java", "-jar", "app.jar", "server", "config.yml"]
+
+    - name: Build Docker image
+      command: docker build -t product-catalogue:latest .
+      args:
+        chdir: /home/ubuntu/
+
+    - name: Run Docker container
+      docker_container:
+        name: product-catalogue
+        image: product-catalogue:latest
+        state: started
+        restart_policy: always
+        ports:
+          - "8080:8080"
+
